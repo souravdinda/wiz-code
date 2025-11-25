@@ -1,0 +1,31 @@
+{
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "database",
+    "namespace": "production"
+  },
+  "spec": {
+    "replicas": 3,
+    "serviceName": "database",
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "postgres",
+            "image": "postgres:14",
+            "resources": {
+              "limits": {
+                "cpu": "1000m",
+                "memory": "2Gi"
+              },
+              "requests": {
+                "cpu": "500m",
+                "memory": "1Gi"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

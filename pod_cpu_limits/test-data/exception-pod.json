@@ -1,0 +1,16 @@
+{
+  "kind": "Pod",
+  "metadata": {
+    "name": "legacy-app",
+    "annotations": {
+      "policy.invesco.io/exception-id": "EXC-001"
+    }
+  },
+  "spec": {
+    "containers": [{
+      "name": "legacy",
+      "image": "legacy:1.0"
+    }]
+  }
+}
+

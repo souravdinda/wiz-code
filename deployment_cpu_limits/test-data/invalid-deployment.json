@@ -1,0 +1,25 @@
+{
+  "kind": "Deployment",
+  "metadata": {
+    "name": "web-app",
+    "namespace": "production"
+  },
+  "spec": {
+    "replicas": 2,
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "nginx",
+          "image": "nginx:1.21",
+          "resources": {
+            "requests": {
+              "cpu": "250m",
+              "memory": "256Mi"
+            }
+          }
+        }]
+      }
+    }
+  }
+}
+

@@ -1,0 +1,21 @@
+{
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "database",
+    "namespace": "production"
+  },
+  "spec": {
+    "replicas": 3,
+    "serviceName": "database",
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "postgres",
+            "image": "postgres:14"
+          }
+        ]
+      }
+    }
+  }
+}

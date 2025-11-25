@@ -1,0 +1,16 @@
+{
+  "kind": "Pod",
+  "metadata": {
+    "name": "emergency-app",
+    "annotations": {
+      "policy.k8s.company/cpu-limit-bypass": "approved-by-sre"
+    }
+  },
+  "spec": {
+    "containers": [{
+      "name": "app",
+      "image": "app:1.0"
+    }]
+  }
+}
+

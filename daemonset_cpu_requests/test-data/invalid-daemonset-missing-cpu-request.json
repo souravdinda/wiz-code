@@ -1,0 +1,28 @@
+{
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "node-exporter",
+    "namespace": "monitoring"
+  },
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "exporter",
+            "image": "node-exporter:1.0",
+            "resources": {
+              "limits": {
+                "cpu": "200m",
+                "memory": "256Mi"
+              },
+              "requests": {
+                "memory": "128Mi"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

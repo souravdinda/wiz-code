@@ -1,0 +1,21 @@
+{
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "web-app",
+    "namespace": "production"
+  },
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "nginx",
+            "image": "nginx:1.21"
+          }
+        ]
+      }
+    },
+    "serviceName": "web-app",
+    "replicas": 3
+  }
+}

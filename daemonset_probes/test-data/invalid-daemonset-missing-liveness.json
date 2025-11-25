@@ -1,0 +1,25 @@
+{
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "web-app",
+    "namespace": "production"
+  },
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "nginx",
+            "image": "nginx:1.21",
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/ready",
+                "port": 8080
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

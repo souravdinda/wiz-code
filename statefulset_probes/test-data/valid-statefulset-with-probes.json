@@ -1,0 +1,33 @@
+{
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "web-app",
+    "namespace": "production"
+  },
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "nginx",
+            "image": "nginx:1.21",
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/health",
+                "port": 8080
+              }
+            },
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/ready",
+                "port": 8080
+              }
+            }
+          }
+        ]
+      }
+    },
+    "serviceName": "web-app",
+    "replicas": 3
+  }
+}
