@@ -1,0 +1,22 @@
+{
+  "kind": "Pod",
+  "metadata": {
+    "name": "web-app",
+    "namespace": "production"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "nginx",
+        "image": "nginx:1.21",
+        "readinessProbe": {
+          "httpGet": {
+            "path": "/ready",
+            "port": 8080
+          }
+        }
+      }
+    ]
+  }
+}
+

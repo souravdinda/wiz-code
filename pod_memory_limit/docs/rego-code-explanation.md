@@ -1,37 +1,38 @@
-# Rego Policy Code Explanation - Line by Line
+# Rego Policy Code Explanation - Memory Limits Enforcement
 
-This document provides a detailed line-by-line explanation of the Memory Limit Enforcement Rego policy, including what happens if you don't use each block.
+This document provides a detailed line-by-line explanation of the Memory Limits Enforcement Rego policy for Kubernetes Pods.
 
 ## 📋 Policy Overview
 
-The policy validates that all Kubernetes Pod containers have memory limits configured to prevent resource contention and unpredictable performance.
+The policy validates that all Kubernetes Pod containers (including initContainers and ephemeralContainers) have memory limits configured to prevent resource contention and unpredictable performance.
 
 ## 🔍 Complete Policy Code
 
 ```rego
 package wiz
 
-# Invesco-Memory Limits Not Set
-# This rule checks if Kubernetes pods have memory limits configured for all containers
-# Pods without memory limits can lead to resource contention and unpredictable performance
-default result = "pass"
+# This rule checks if Pod containers have memory limits defined
+# Memory limits help prevent resource contention and unpredictable performance
+default result = "fail"
 
-currentConfiguration := sprintf("Pod '%s' containers without memory limits: %v", [input.metadata.name, containers_without_memory_limits])
-expectedConfiguration := "All containers should have memory limits specified in their resource requirements"
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
 
-# Get containers that don't have memory limits set
-containers_without_memory_limits := [container.name | 
-    container := input.spec.containers[_]
-    not container.resources.limits.memory
-]
-
-result = "fail" if {
-    count(containers_without_memory_limits) > 0
+# Check if all containers have memory limits defined
+hasMemoryLimits {
+    count({container | 
+        container := input.object.spec[containerPaths[]][]
+        container.resources.limits.memory
+    }) == count({container | 
+        container := input.object.spec[containerPaths[]][]
+    })
 }
 
-result = "skip" if {
-    input.kind != "Pod"
+result = "pass" {
+    hasMemoryLimits
 }
+
+currentConfiguration := "One or more containers do not have memory limits defined"
+expectedConfiguration := "All containers should have memory limits defined in resources.limits.memory"
 ```
 
 ## 📝 Line-by-Line Explanation
@@ -47,254 +48,162 @@ package wiz
 - ❌ **Consequence**: Policy won't compile
 - ❌ **Impact**: Cannot be deployed to Wiz
 
-### Policy Comments - Lines 3-5
+### Default Result
 ```rego
-# Invesco-Memory Limits Not Set
-# This rule checks if Kubernetes pods have memory limits configured for all containers
-# Pods without memory limits can lead to resource contention and unpredictable performance
+default result = "fail"
 ```
-**What it does:** Provides documentation explaining the purpose and importance of the policy.
+**What it does:** Sets the default result to "fail". This means the policy will fail by default unless the pass condition is met.
 
 **What happens if you don't use it:**
-- ⚠️ **Warning**: No documentation
-- ⚠️ **Consequence**: Difficult to understand policy purpose
-- ✅ **Impact**: Policy still works but lacks documentation
+- ❌ **Problem**: Policy may return undefined results
+- ❌ **Consequence**: Unpredictable behavior
+- ❌ **Impact**: Policy enforcement becomes unreliable
 
-### Default Result - Line 6
+### Container Paths Definition
 ```rego
-default result = "pass"
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
 ```
-**What it does:** Sets the default result to "pass", meaning the policy passes unless a failure condition is met.
+**What it does:** Defines all container types that need to be checked. This includes regular containers, init containers, and ephemeral containers.
 
 **What happens if you don't use it:**
-- ❌ **Problem**: Result may be undefined
-- ❌ **Consequence**: Policy evaluation may fail or return unexpected results
-- ❌ **Impact**: Unpredictable behavior - pods may not be properly evaluated
-- ❌ **Example**: Without a default, the result might be undefined for valid pods
+- ❌ **Problem**: Only regular containers would be checked
+- ❌ **Consequence**: Init containers and ephemeral containers without memory limits would be missed
+- ❌ **Impact**: Incomplete policy enforcement
 
-### Current Configuration Message - Line 8
+### Has Memory Limits Rule
 ```rego
-currentConfiguration := sprintf("Pod '%s' containers without memory limits: %v", [input.metadata.name, containers_without_memory_limits])
-```
-**What it does:** Creates a descriptive message showing which containers are missing memory limits.
-
-**What happens if you don't use it:**
-- ⚠️ **Problem**: No detailed error message
-- ⚠️ **Consequence**: Users won't know which containers are problematic
-- ⚠️ **Impact**: Poor user experience - difficult to identify and fix issues
-- ⚠️ **Example**: Users get a generic failure without knowing which containers need fixing
-
-### Expected Configuration Message - Line 9
-```rego
-expectedConfiguration := "All containers should have memory limits specified in their resource requirements"
-```
-**What it does:** Defines the expected configuration that should be met.
-
-**What happens if you don't use it:**
-- ⚠️ **Problem**: No guidance on what's expected
-- ⚠️ **Consequence**: Users don't know what the policy requires
-- ⚠️ **Impact**: Poor user experience - unclear remediation steps
-- ⚠️ **Example**: Users won't know they need to add memory limits to containers
-
-### Container List Comprehension - Lines 11-15
-```rego
-# Get containers that don't have memory limits set
-containers_without_memory_limits := [container.name | 
-    container := input.spec.containers[_]
-    not container.resources.limits.memory
-]
-```
-**What it does:** Uses a list comprehension to collect all container names that don't have memory limits configured.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: Cannot identify problematic containers
-- ❌ **Consequence**: Policy cannot determine which containers are missing memory limits
-- ❌ **Impact**: Policy fails to work - no way to check container memory limits
-- ❌ **Example**: Policy would fail to detect containers without memory limits
-
-### Container Iteration - Line 13
-```rego
-container := input.spec.containers[_]
-```
-**What it does:** Iterates through each container in the pod's spec.containers array.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: Cannot check individual containers
-- ❌ **Consequence**: Only checks the first container or fails entirely
-- ❌ **Impact**: Multi-container pods won't be properly validated
-- ❌ **Example**: A pod with 3 containers - only the first one would be checked
-
-### Memory Limit Check - Line 14
-```rego
-not container.resources.limits.memory
-```
-**What it does:** Checks if the container is missing a memory limit by verifying that `container.resources.limits.memory` is not set.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: No memory limit validation
-- ❌ **Consequence**: Containers without memory limits will be allowed
-- ❌ **Impact**: Policy becomes useless - no enforcement of memory limits
-- ❌ **Example**: A container with no memory limit would be allowed
-
-### Failure Condition - Lines 17-19
-```rego
-result = "fail" if {
-    count(containers_without_memory_limits) > 0
+hasMemoryLimits {
+    count({container | 
+        container := input.object.spec[containerPaths[]][]
+        container.resources.limits.memory
+    }) == count({container | 
+        container := input.object.spec[containerPaths[]][]
+    })
 }
 ```
-**What it does:** Sets the result to "fail" if there are any containers without memory limits.
+**What it does:** 
+- Uses set comprehension to collect all containers from all container types
+- First set: Counts containers that have memory limits defined
+- Second set: Counts all containers (regardless of memory limits)
+- Returns true if both counts are equal (meaning all containers have memory limits)
 
 **What happens if you don't use it:**
-- ❌ **Problem**: No failure condition
-- ❌ **Consequence**: Policy will always pass, even when containers are missing memory limits
-- ❌ **Impact**: Policy becomes useless - no enforcement occurs
-- ❌ **Example**: Pods without memory limits would pass validation
+- ❌ **Problem**: Cannot validate memory limits
+- ❌ **Consequence**: Containers without memory limits would pass
+- ❌ **Impact**: Policy fails to enforce memory limits
 
-### Skip Condition - Lines 21-23
+**Key Points:**
+- Uses `input.object.spec[containerPaths[]][]` to iterate through all container types
+- Uses set comprehension `{container | ...}` to collect containers
+- Compares counts to ensure all containers have memory limits
+
+### Pass Condition
 ```rego
-result = "skip" if {
-    input.kind != "Pod"
+result = "pass" {
+    hasMemoryLimits
 }
 ```
-**What it does:** Skips evaluation for resources that are not Pods, since this policy only applies to Pod resources.
+**What it does:** Sets result to "pass" if all containers have memory limits defined.
 
 **What happens if you don't use it:**
-- ❌ **Problem**: Policy applies to ALL resources
-- ❌ **Consequence**: Services, ConfigMaps, Secrets, etc. will be checked for memory limits
-- ❌ **Impact**: False positives - non-Pod resources will be evaluated incorrectly
-- ❌ **Example**: A Service resource will be checked for container memory limits, which doesn't make sense
-
-## 🔄 Policy Flow Diagram
-
-```
-Input Resource
-     ↓
-Is it a Pod? (input.kind == "Pod")
-     ↓ Yes
-Get all containers (input.spec.containers[_])
-     ↓
-For each container:
-Has memory limit? (container.resources.limits.memory)
-     ↓ No
-Add to containers_without_memory_limits
-     ↓
-Any containers without limits? (count > 0)
-     ↓ Yes
-Set result = "fail"
-     ↓
-Return result
-```
+- ❌ **Problem**: No way to pass the policy
+- ❌ **Consequence**: Policy would always fail
+- ❌ **Impact**: Valid deployments would be rejected
 
 ## 🎯 Key Design Decisions
 
-### 1. Default Result to "pass"
-**Why:** Assumes pods are compliant unless proven otherwise
-**Impact:** Reduces false positives and allows valid pods to pass quickly
+### 1. Default Result to "fail"
+**Why:** Fail-safe approach - assumes non-compliance unless proven otherwise
+**Impact:** Ensures strict enforcement and prevents accidental approvals
 
-### 2. List Comprehension for Container Collection
-**Why:** Efficiently collects all problematic containers in one pass
-**Impact:** Provides detailed error messages showing all containers that need fixing
+### 2. Checking All Container Types
+**Why:** All container types (containers, initContainers, ephemeralContainers) need memory limits
+**Impact:** Comprehensive policy enforcement across all container types
 
-### 3. Skip Non-Pod Resources
-**Why:** Policy only applies to Pod resources that have containers
-**Impact:** Prevents false positives on Services, ConfigMaps, and other non-container resources
+### 3. Set Comprehension Pattern
+**Why:** Efficiently compares counts of containers with memory limits vs all containers
+**Impact:** Clean validation logic that ensures all containers are checked
 
-### 4. Count-Based Failure Condition
-**Why:** Fails only when there are actual containers missing memory limits
-**Impact:** Allows pods with all containers properly configured to pass
+### 4. Using input.object
+**Why:** Wiz uses `input.object` to access the Kubernetes resource
+**Impact:** Correct path for Wiz policy evaluation
 
 ## 🚨 Common Mistakes to Avoid
 
 ### 1. Missing Default Result
 ```rego
 # ❌ WRONG - No default result
-result = "fail" if {
-    count(containers_without_memory_limits) > 0
+hasMemoryLimits {
+    count({container | ...}) == count({container | ...})
 }
 
 # ✅ CORRECT - Default result set
-default result = "pass"
-result = "fail" if {
-    count(containers_without_memory_limits) > 0
+default result = "fail"
+hasMemoryLimits {
+    count({container | ...}) == count({container | ...})
 }
 ```
 
-### 2. Incorrect Container Path
+### 2. Missing Container Paths Definition
 ```rego
-# ❌ WRONG - Wrong path for containers
-container := input.containers[_]
+# ❌ WRONG - Only checks regular containers
+hasMemoryLimits {
+    count({container | 
+        container := input.object.spec.containers[]
+        container.resources.limits.memory
+    }) == count({container | 
+        container := input.object.spec.containers[]
+    })
+}
 
-# ✅ CORRECT - Correct path for Pod containers
-container := input.spec.containers[_]
+# ✅ CORRECT - Checks all container types
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
+hasMemoryLimits {
+    count({container | 
+        container := input.object.spec[containerPaths[]][]
+        container.resources.limits.memory
+    }) == count({container | 
+        container := input.object.spec[containerPaths[]][]
+    })
+}
 ```
 
-### 3. Missing Skip Condition
+### 3. Incorrect Path for Pod
 ```rego
-# ❌ WRONG - Applies to all resources
-result = "fail" if {
-    count(containers_without_memory_limits) > 0
-}
+# ❌ WRONG - Wrong path (this is for Deployments)
+container := input.object.spec.template.spec[containerPaths[]][]
 
-# ✅ CORRECT - Only applies to Pods
-result = "skip" if {
-    input.kind != "Pod"
-}
-result = "fail" if {
-    count(containers_without_memory_limits) > 0
-}
+# ✅ CORRECT - Correct path for Pods
+container := input.object.spec[containerPaths[]][]
 ```
 
-### 4. Incorrect Memory Limit Check
+### 4. Wrong Resource Path
 ```rego
-# ❌ WRONG - Checks if memory limit exists (opposite logic)
+# ❌ WRONG - Checks requests instead of limits (for limits policy)
 container.resources.limits.memory
 
-# ✅ CORRECT - Checks if memory limit is missing
-not container.resources.limits.memory
+# ✅ CORRECT - Checks limits (for limits policy)
+container.resources.limits.memory
 ```
 
-## 📊 Testing Each Block
+## 📊 Testing
 
-### Test Default Result
+### Test with Valid Pod
 ```bash
-# Test with valid pod
-opa eval --data policies/memory-limit-enforcement.rego --input test-data/valid-pod.json 'data.wiz.result'
+opa eval --data policies/memory-limit-enforcement.rego \
+        --input test-data/valid-pod.json \
+        "data.wiz.result"
 # Expected: "pass"
 ```
 
-### Test Container Extraction
+### Test with Invalid Pod
 ```bash
-# Test container extraction
-opa eval --data policies/memory-limit-enforcement.rego --input test-data/valid-pod.json 'data.wiz.containers_without_memory_limits'
-# Expected: [] (empty array)
-```
-
-### Test Failure Condition
-```bash
-# Test with invalid pod
-opa eval --data policies/memory-limit-enforcement.rego --input test-data/invalid-pod.json 'data.wiz.result'
+opa eval --data policies/memory-limit-enforcement.rego \
+        --input test-data/invalid-pod-missing-memory-limit.json \
+        "data.wiz.result"
 # Expected: "fail"
-```
-
-### Test Skip Condition
-```bash
-# Test with non-Pod resource
-opa eval --data policies/memory-limit-enforcement.rego --input test-data/not-pod-deployment.json 'data.wiz.result'
-# Expected: "skip"
 ```
 
 ## 🎉 Summary
 
-Each block in the Rego policy serves a specific purpose:
-
-- **Package Declaration**: Required for policy compilation
-- **Default Result**: Ensures policy always returns a result
-- **Current/Expected Configuration**: Provides clear error messages
-- **Container List Comprehension**: Identifies all containers missing memory limits
-- **Container Iteration**: Checks each container individually
-- **Memory Limit Check**: Validates memory limit presence
-- **Failure Condition**: Enforces policy when violations are found
-- **Skip Condition**: Prevents false positives on non-Pod resources
-
-**Removing any block will break the policy functionality or reduce its effectiveness.** The policy is designed as an integrated system where each component depends on the others for proper operation.
-
+This policy ensures that all containers in Kubernetes Pods have memory limits configured. The policy uses a fail-safe approach with `default result = "fail"` and comprehensively checks all container types using set comprehension to compare counts of containers with memory limits against all containers.

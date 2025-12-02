@@ -1,23 +1,24 @@
 package wiz
 
-# Invesco-Memory Requests Not Set
-# This rule checks if Kubernetes deployments have memory requests configured for all containers
-# Deployments without memory requests can lead to resource contention and unpredictable performance
-default result = "pass"
+# This rule checks if Deployment containers have memory requests defined
+# Memory requests help Kubernetes scheduler make better placement decisions
+default result = "fail"
 
-currentConfiguration := sprintf("Deployment '%s' containers without memory requests: %v", [input.metadata.name, containers_without_memory_requests])
-expectedConfiguration := "All containers should have memory requests specified in their resource requirements"
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
 
-# Get containers that don't have memory requests set
-containers_without_memory_requests := [container.name | 
-    container := input.spec.template.spec.containers[_]
-    not container.resources.requests.memory
-]
-
-result = "fail" if {
-    count(containers_without_memory_requests) > 0
+# Check if all containers have memory requests defined
+hasMemoryRequests {
+    count({container | 
+        container := input.object.spec.template.spec[containerPaths[]][]
+        container.resources.requests.memory
+    }) == count({container | 
+        container := input.object.spec.template.spec[containerPaths[]][]
+    })
 }
 
-result = "skip" if {
-    input.kind != "Deployment"
+result = "pass" {
+    hasMemoryRequests
 }
+
+currentConfiguration := "One or more containers do not have memory requests defined"
+expectedConfiguration := "All containers should have memory requests defined in resources.requests.memory"

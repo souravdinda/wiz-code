@@ -1,23 +1,14 @@
 package wiz
 
-# Invesco-CPU Requests Not Set
-# This rule checks if Kubernetes deployments have CPU requests configured for all containers
-# Deployments without CPU requests can lead to resource contention and unpredictable performance
-default result = "pass"
+# This rule checks if Kubernetes pods have CPU requests configured for all containers
+# Pods without CPU requests can lead to resource contention and unpredictable performance
+default result = "fail"
 
-currentConfiguration := sprintf("Deployment '%s' containers without CPU requests: %v", [input.metadata.name, containers_without_cpu_requests])
-expectedConfiguration := "All containers should have CPU requests specified in their resource requirements"
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
 
-# Get containers that don't have CPU requests set
-containers_without_cpu_requests := [container.name | 
-    container := input.spec.template.spec.containers[_]
-    not container.resources.requests.cpu
-]
-
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
+result = "pass" {
+  input.spec.template.spec[containerPaths[]][].resources.requests.cpu
 }
 
-result = "skip" if {
-    input.kind != "Deployment"
-}
+currentConfiguration := "CPU requests are not set for containers in the deployment"
+expectedConfiguration := "CPU requests should be set for all containers in the deployment"

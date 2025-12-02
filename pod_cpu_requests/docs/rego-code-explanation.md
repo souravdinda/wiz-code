@@ -1,37 +1,28 @@
-# Rego Policy Code Explanation - Line by Line
+# Rego Policy Code Explanation - CPU Requests Enforcement
 
-This document provides a detailed line-by-line explanation of the CPU Request Enforcement Rego policy, including what happens if you don't use each block.
+This document provides a detailed line-by-line explanation of the CPU Requests Enforcement Rego policy for Kubernetes Pods.
 
 ## 📋 Policy Overview
 
-The policy validates that all Kubernetes Pod containers have CPU requests configured to prevent resource contention and unpredictable performance.
+The policy validates that all Kubernetes Pod containers (including initContainers and ephemeralContainers) have CPU requests configured to help Kubernetes scheduler make better placement decisions.
 
 ## 🔍 Complete Policy Code
 
 ```rego
 package wiz
 
-# Invesco-CPU Requests Not Set
 # This rule checks if Kubernetes pods have CPU requests configured for all containers
 # Pods without CPU requests can lead to resource contention and unpredictable performance
-default result = "pass"
+default result = "fail"
 
-currentConfiguration := sprintf("Pod '%s' containers without CPU requests: %v", [input.metadata.name, containers_without_cpu_requests])
-expectedConfiguration := "All containers should have CPU requests specified in their resource requirements"
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
 
-# Get containers that don't have CPU requests set
-containers_without_cpu_requests := [container.name | 
-    container := input.spec.containers[_]
-    not container.resources.requests.cpu
-]
-
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
+result = "pass" {
+  input.spec[containerPaths[]][].resources.requests.cpu
 }
 
-result = "skip" if {
-    input.kind != "Pod"
-}
+currentConfiguration := "CPU requests are not set for containers in the pod"
+expectedConfiguration := "CPU requests should be set for all containers in the pod"
 ```
 
 ## 📝 Line-by-Line Explanation
@@ -47,254 +38,133 @@ package wiz
 - ❌ **Consequence**: Policy won't compile
 - ❌ **Impact**: Cannot be deployed to Wiz
 
-### Policy Comments - Lines 3-5
+### Default Result
 ```rego
-# Invesco-CPU Requests Not Set
-# This rule checks if Kubernetes pods have CPU requests configured for all containers
-# Pods without CPU requests can lead to resource contention and unpredictable performance
+default result = "fail"
 ```
-**What it does:** Provides documentation explaining the purpose and importance of the policy.
+**What it does:** Sets the default result to "fail". This means the policy will fail by default unless the pass condition is met.
 
 **What happens if you don't use it:**
-- ⚠️ **Warning**: No documentation
-- ⚠️ **Consequence**: Difficult to understand policy purpose
-- ✅ **Impact**: Policy still works but lacks documentation
+- ❌ **Problem**: Policy may return undefined results
+- ❌ **Consequence**: Unpredictable behavior
+- ❌ **Impact**: Policy enforcement becomes unreliable
 
-### Default Result - Line 6
+### Container Paths Definition
 ```rego
-default result = "pass"
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
 ```
-**What it does:** Sets the default result to "pass", meaning the policy passes unless a failure condition is met.
+**What it does:** Defines all container types that need to be checked. This includes regular containers, init containers, and ephemeral containers.
 
 **What happens if you don't use it:**
-- ❌ **Problem**: Result may be undefined
-- ❌ **Consequence**: Policy evaluation may fail or return unexpected results
-- ❌ **Impact**: Unpredictable behavior - pods may not be properly evaluated
-- ❌ **Example**: Without a default, the result might be undefined for valid pods
+- ❌ **Problem**: Only regular containers would be checked
+- ❌ **Consequence**: Init containers and ephemeral containers without CPU requests would be missed
+- ❌ **Impact**: Incomplete policy enforcement
 
-### Current Configuration Message - Line 8
+### Pass Condition
 ```rego
-currentConfiguration := sprintf("Pod '%s' containers without CPU requests: %v", [input.metadata.name, containers_without_cpu_requests])
-```
-**What it does:** Creates a descriptive message showing which containers are missing CPU requests.
-
-**What happens if you don't use it:**
-- ⚠️ **Problem**: No detailed error message
-- ⚠️ **Consequence**: Users won't know which containers are problematic
-- ⚠️ **Impact**: Poor user experience - difficult to identify and fix issues
-- ⚠️ **Example**: Users get a generic failure without knowing which containers need fixing
-
-### Expected Configuration Message - Line 9
-```rego
-expectedConfiguration := "All containers should have CPU requests specified in their resource requirements"
-```
-**What it does:** Defines the expected configuration that should be met.
-
-**What happens if you don't use it:**
-- ⚠️ **Problem**: No guidance on what's expected
-- ⚠️ **Consequence**: Users don't know what the policy requires
-- ⚠️ **Impact**: Poor user experience - unclear remediation steps
-- ⚠️ **Example**: Users won't know they need to add CPU requests to containers
-
-### Container List Comprehension - Lines 11-15
-```rego
-# Get containers that don't have CPU requests set
-containers_without_cpu_requests := [container.name | 
-    container := input.spec.containers[_]
-    not container.resources.requests.cpu
-]
-```
-**What it does:** Uses a list comprehension to collect all container names that don't have CPU requests configured.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: Cannot identify problematic containers
-- ❌ **Consequence**: Policy cannot determine which containers are missing CPU requests
-- ❌ **Impact**: Policy fails to work - no way to check container CPU requests
-- ❌ **Example**: Policy would fail to detect containers without CPU requests
-
-### Container Iteration - Line 13
-```rego
-container := input.spec.containers[_]
-```
-**What it does:** Iterates through each container in the pod's spec.containers array.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: Cannot check individual containers
-- ❌ **Consequence**: Only checks the first container or fails entirely
-- ❌ **Impact**: Multi-container pods won't be properly validated
-- ❌ **Example**: A pod with 3 containers - only the first one would be checked
-
-### CPU Request Check - Line 14
-```rego
-not container.resources.requests.cpu
-```
-**What it does:** Checks if the container is missing a CPU request by verifying that `container.resources.requests.cpu` is not set.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: No CPU request validation
-- ❌ **Consequence**: Containers without CPU requests will be allowed
-- ❌ **Impact**: Policy becomes useless - no enforcement of CPU requests
-- ❌ **Example**: A container with no CPU request would be allowed
-
-### Failure Condition - Lines 17-19
-```rego
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
+result = "pass" {
+  input.spec[containerPaths[]][].resources.requests.cpu
 }
 ```
-**What it does:** Sets the result to "fail" if there are any containers without CPU requests.
+**What it does:** 
+- Uses the `containerPaths[]` syntax to iterate through all container types
+- Checks if all containers across all types have CPU requests defined
+- Returns "pass" only if every container in every container type has a CPU limit
 
 **What happens if you don't use it:**
-- ❌ **Problem**: No failure condition
-- ❌ **Consequence**: Policy will always pass, even when containers are missing CPU requests
-- ❌ **Impact**: Policy becomes useless - no enforcement occurs
-- ❌ **Example**: Pods without CPU requests would pass validation
+- ❌ **Problem**: Cannot validate CPU limit configuration
+- ❌ **Consequence**: Containers without CPU requests would pass
+- ❌ **Impact**: Policy fails to enforce CPU requests
 
-### Skip Condition - Lines 21-23
-```rego
-result = "skip" if {
-    input.kind != "Pod"
-}
-```
-**What it does:** Skips evaluation for resources that are not Pods, since this policy only applies to Pod resources.
-
-**What happens if you don't use it:**
-- ❌ **Problem**: Policy applies to ALL resources
-- ❌ **Consequence**: Services, ConfigMaps, Secrets, etc. will be checked for CPU requests
-- ❌ **Impact**: False positives - non-Pod resources will be evaluated incorrectly
-- ❌ **Example**: A Service resource will be checked for container CPU requests, which doesn't make sense
-
-## 🔄 Policy Flow Diagram
-
-```
-Input Resource
-     ↓
-Is it a Pod? (input.kind == "Pod")
-     ↓ Yes
-Get all containers (input.spec.containers[_])
-     ↓
-For each container:
-Has CPU request? (container.resources.requests.cpu)
-     ↓ No
-Add to containers_without_cpu_requests
-     ↓
-Any containers without requests? (count > 0)
-     ↓ Yes
-Set result = "fail"
-     ↓
-Return result
-```
+**Key Points:**
+- Uses `input.spec[containerPaths[]][]` to iterate through all container types
+- The `containerPaths[]` syntax is a Wiz-specific extension that expands to check all container types simultaneously
+- Checks `resources.requests.cpu` for each container
 
 ## 🎯 Key Design Decisions
 
-### 1. Default Result to "pass"
-**Why:** Assumes pods are compliant unless proven otherwise
-**Impact:** Reduces false positives and allows valid pods to pass quickly
+### 1. Default Result to "fail"
+**Why:** Fail-safe approach - assumes non-compliance unless proven otherwise
+**Impact:** Ensures strict enforcement and prevents accidental approvals
 
-### 2. List Comprehension for Container Collection
-**Why:** Efficiently collects all problematic containers in one pass
-**Impact:** Provides detailed error messages showing all containers that need fixing
+### 2. Checking All Container Types
+**Why:** All container types (containers, initContainers, ephemeralContainers) need CPU requests
+**Impact:** Comprehensive policy enforcement across all container types
 
-### 3. Skip Non-Pod Resources
-**Why:** Policy only applies to Pod resources that have containers
-**Impact:** Prevents false positives on Services, ConfigMaps, and other non-container resources
+### 3. Container Paths Array Syntax
+**Why:** Efficient way to check all container types in a single expression
+**Impact:** Clean, concise policy code that's easy to maintain
 
-### 4. Count-Based Failure Condition
-**Why:** Fails only when there are actual containers missing CPU requests
-**Impact:** Allows pods with all containers properly configured to pass
+### 4. Using input.spec (not input.object)
+**Why:** This policy uses `input.spec` directly for the resource specification
+**Impact:** Correct path for this specific policy pattern
 
 ## 🚨 Common Mistakes to Avoid
 
 ### 1. Missing Default Result
 ```rego
 # ❌ WRONG - No default result
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
+result = "pass" {
+  input.spec[containerPaths[]][].resources.requests.cpu
 }
 
 # ✅ CORRECT - Default result set
-default result = "pass"
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
+default result = "fail"
+result = "pass" {
+  input.spec[containerPaths[]][].resources.requests.cpu
 }
 ```
 
-### 2. Incorrect Container Path
+### 2. Missing Container Paths Definition
 ```rego
-# ❌ WRONG - Wrong path for containers
-container := input.containers[_]
+# ❌ WRONG - No container paths defined
+result = "pass" {
+  input.spec.containers[].resources.requests.cpu
+}
 
-# ✅ CORRECT - Correct path for Pod containers
-container := input.spec.containers[_]
+# ✅ CORRECT - Container paths defined
+containerPaths := {"containers", "initContainers", "ephemeralContainers"}
+result = "pass" {
+  input.spec[containerPaths[]][].resources.requests.cpu
+}
 ```
 
-### 3. Missing Skip Condition
+### 3. Incorrect Path for Pod
 ```rego
-# ❌ WRONG - Applies to all resources
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
-}
+# ❌ WRONG - Wrong path (this is for Pods)
+input.spec[containerPaths[]][].resources.requests.cpu
 
-# ✅ CORRECT - Only applies to Pods
-result = "skip" if {
-    input.kind != "Pod"
-}
-result = "fail" if {
-    count(containers_without_cpu_requests) > 0
-}
+# ✅ CORRECT - Correct path for Pods
+input.spec[containerPaths[]][].resources.requests.cpu
 ```
 
-### 4. Incorrect CPU Request Check
+### 4. Wrong Resource Path
 ```rego
-# ❌ WRONG - Checks if CPU request exists (opposite logic)
-container.resources.requests.cpu
+# ❌ WRONG - Checks requests instead of limits
+input.spec[containerPaths[]][].resources.requests.cpu
 
-# ✅ CORRECT - Checks if CPU request is missing
-not container.resources.requests.cpu
+# ✅ CORRECT - Checks limits
+input.spec[containerPaths[]][].resources.requests.cpu
 ```
 
-## 📊 Testing Each Block
+## 📊 Testing
 
-### Test Default Result
+### Test with Valid Pod
 ```bash
-# Test with valid pod
-opa eval --data policies/cpu-request-enforcement.rego --input test-data/valid-pod.json 'data.wiz.result'
+opa eval --data policies/cpu-request-enforcement.rego \
+        --input test-data/valid-deployment.json \
+        "data.wiz.result"
 # Expected: "pass"
 ```
 
-### Test Container Extraction
+### Test with Invalid Pod
 ```bash
-# Test container extraction
-opa eval --data policies/cpu-request-enforcement.rego --input test-data/valid-pod.json 'data.wiz.containers_without_cpu_requests'
-# Expected: [] (empty array)
-```
-
-### Test Failure Condition
-```bash
-# Test with invalid pod
-opa eval --data policies/cpu-request-enforcement.rego --input test-data/invalid-pod.json 'data.wiz.result'
+opa eval --data policies/cpu-request-enforcement.rego \
+        --input test-data/invalid-deployment-missing-cpu-request.json \
+        "data.wiz.result"
 # Expected: "fail"
-```
-
-### Test Skip Condition
-```bash
-# Test with non-Pod resource
-opa eval --data policies/cpu-request-enforcement.rego --input test-data/not-pod-deployment.json 'data.wiz.result'
-# Expected: "skip"
 ```
 
 ## 🎉 Summary
 
-Each block in the Rego policy serves a specific purpose:
-
-- **Package Declaration**: Required for policy compilation
-- **Default Result**: Ensures policy always returns a result
-- **Current/Expected Configuration**: Provides clear error messages
-- **Container List Comprehension**: Identifies all containers missing CPU requests
-- **Container Iteration**: Checks each container individually
-- **CPU Request Check**: Validates CPU request presence
-- **Failure Condition**: Enforces policy when violations are found
-- **Skip Condition**: Prevents false positives on non-Pod resources
-
-**Removing any block will break the policy functionality or reduce its effectiveness.** The policy is designed as an integrated system where each component depends on the others for proper operation.
-
+This policy ensures that all containers in Kubernetes Pods have CPU requests configured. The policy uses a fail-safe approach with `default result = "fail"` and comprehensively checks all container types using the `containerPaths[]` syntax, which is a Wiz-specific extension that efficiently validates all container types in a single expression.

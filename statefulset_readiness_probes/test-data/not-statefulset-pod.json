@@ -1,0 +1,16 @@
+{
+  "kind": "Pod",
+  "metadata": {
+    "name": "web-app",
+    "namespace": "production"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "nginx",
+        "image": "nginx:1.21"
+      }
+    ]
+  }
+}
+

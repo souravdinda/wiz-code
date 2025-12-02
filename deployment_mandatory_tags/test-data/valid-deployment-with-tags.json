@@ -4,9 +4,10 @@
     "name": "web-app",
     "namespace": "production",
     "labels": {
-      "env": "production",
+      "environment": "production",
       "owner": "platform-team",
-      "name": "web-app"
+      "project": "web-app",
+      "team": "platform"
     }
   },
   "spec": {
